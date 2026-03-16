@@ -1,0 +1,16 @@
+metrica,valor
+PR-AUC (clasificación),0.8387
+Precision@0.5 (clasificación),0.8671
+Recall@0.5 (clasificación),0.5613
+MAE_pos (regresión solo atrasos),0.4817
+RMSE_pos (regresión solo atrasos),0.6701
+MAE_global (delay_expected),0.6951
+RMSE_global (delay_expected),0.8864
+R2_global (delay_expected),0.2715
+MAE_global (delay_operativo),0.6373
+RMSE_global (delay_operativo),1.0289
+R2_global (delay_operativo),0.0186
+MAE_pos (delay_expected en atrasos),0.6792
+MAE_pos (delay_operativo en atrasos),0.9194
+MAE_baseline0,0.7873
+MAE_baseline1,0.6931

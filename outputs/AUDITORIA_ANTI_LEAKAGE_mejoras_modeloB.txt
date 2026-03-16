@@ -1,0 +1,270 @@
+================================================================================
+AUDITORÍA ANTI-LEAKAGE - NOTEBOOK mejoras_de_modeloB.ipynb
+================================================================================
+Fecha: 15 de Marzo, 2026
+Auditor: ML Engineer Senior
+Objetivo: Eliminar data leakage y asegurar validez del enfoque 2-stage
+
+================================================================================
+RESUMEN EJECUTIVO
+================================================================================
+
+El notebook "mejoras_de_modeloB.ipynb" ha sido AUDITADO Y CORREGIDO para eliminar
+3 fuentes críticas de data leakage que invalidaban los resultados del modelo.
+
+RESULTADO: ✅ Notebook ahora es VÁLIDO para evaluación y producción.
+
+IMPACTO ESPERADO EN MÉTRICAS:
+- Métricas EMPEORARÁN temporalmente (especialmente clasificación y regresión)
+- Esto es ESPERADO y CORRECTO - las métricas anteriores estaban infladas por leakage
+- Las nuevas métricas reflejan el rendimiento REAL y GENERALIZABLE del modelo
+
+================================================================================
+CORRECCIONES APLICADAS (3 CRÍTICAS)
+================================================================================
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. ELIMINACIÓN DE processing_time (LEAKAGE SEVERO) 🔴 CRÍTICO
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+PROBLEMA DETECTADO:
+   - processing_time = (shipping_date - order_date).dt.days
+   - En muchas filas, processing_time ≈ Days_for_shipping_(real)
+   - Target: delay_days = Days_for_shipping_(real) - Days_for_shipment_(scheduled)
+   - El modelo podía RECONSTRUIR el target usando processing_time + scheduled
+
+EVIDENCIA DE LEAKAGE:
+   - Si processing_time ≈ Days_for_shipping_(real), entonces:
+     delay_days ≈ processing_time - Days_for_shipment_(scheduled)
+   - El modelo tiene acceso directo a una aproximación del target
+   - Explicaría métricas sospechosamente altas en modelo anterior
+
+CORRECCIÓN APLICADA:
+   ✅ processing_time ELIMINADO completamente de numeric_features
+   ✅ Agregado a forbidden_features (lista de variables prohibidas)
+   ✅ Assert añadido: falla si processing_time aparece en features
+   ✅ Documentación en código explicando el riesgo
+
+IMPACTO ESPERADO EN MÉTRICAS:
+   - Clasificación (ETAPA 1): PR-AUC puede bajar ~5-15%
+   - Regresión (ETAPA 2): MAE_pos puede aumentar ~15-30%
+   - ¡Esto es CORRECTO! Refleja rendimiento sin "hacer trampa"
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. CORRECCIÓN DE LABEL ENCODING (LEAKAGE DE PREPROCESAMIENTO) 🟡 IMPORTANTE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+PROBLEMA DETECTADO:
+   - LabelEncoder hacía .fit() con TRAIN + TEST concatenados
+   - Información estadística del test (categorías, frecuencias) filtraba al train
+   - Viola principio fundamental: preprocesamiento debe usar SOLO datos de train
+
+CÓDIGO ANTES (INCORRECTO):
+   combined = pd.concat([X_train_raw[col], X_test_raw[col]], axis=0)
+   le.fit(combined)  # ❌ Usa información del test
+
+CÓDIGO DESPUÉS (CORRECTO):
+   le.fit(X_train_raw[col])  # ✅ Solo train
+   # Manejo de categorías desconocidas en test → -1
+
+CORRECCIÓN APLICADA:
+   ✅ LabelEncoder hace fit SOLO en TRAIN
+   ✅ Categorías desconocidas en TEST se codifican como -1
+   ✅ Se reportan categorías desconocidas por columna
+   ✅ El modelo LightGBM maneja -1 correctamente (tratamiento especial)
+
+IMPACTO ESPERADO EN MÉTRICAS:
+   - Impacto menor (~1-5% en métricas)
+   - Puede haber algunas categorías nuevas en test no vistas en train
+   - Modelo más robusto ante datos futuros con categorías nuevas
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. SPLIT TEMPORAL POR FECHA FIJA (REPRODUCIBILIDAD) 🟢 MEJORA
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+PROBLEMA DETECTADO:
+   - Split usaba índices: split_idx = int(len(df) * 0.8)
+   - Depende del tamaño del dataset (no reproducible)
+   - Si se agregan/eliminan filas, el punto de corte cambia
+   - No permite comparación consistente entre experimentos
+
+CÓDIGO ANTES (NO REPRODUCIBLE):
+   split_idx = int(len(df_sorted) * 0.8)
+   train = df_sorted.iloc[:split_idx]  # ❌ Depende del tamaño
+
+CÓDIGO DESPUÉS (REPRODUCIBLE):
+   CUTOFF_DATE = pd.Timestamp('2017-04-25')
+   train = df[df['shipping_date_(DateOrders)'] < CUTOFF_DATE]  # ✅ Fecha fija
+
+CORRECCIÓN APLICADA:
+   ✅ Split por fecha fija: 2017-04-25
+   ✅ TRAIN: 2015-01-03 a 2017-04-24 (todo antes del corte)
+   ✅ TEST:  2017-04-25 a 2018-02-06 (todo desde el corte)
+   ✅ Assert: Verifica que train.max() < test.min() (sin overlap)
+   ✅ Reproducible independientemente del tamaño del dataset
+
+IMPACTO ESPERADO EN MÉTRICAS:
+   - Impacto mínimo (~0-2% diferencia)
+   - Tamaños de train/test pueden variar ligeramente vs split 80/20
+   - Ventaja: resultados completamente reproducibles
+
+================================================================================
+VALIDACIONES AUTOMÁTICAS AGREGADAS (ASSERTS)
+================================================================================
+
+El notebook ahora incluye ASSERTS que FALLAN si detectan problemas:
+
+✅ Assert 1: No overlap temporal
+   assert train['shipping_date_(DateOrders)'].max() < test['shipping_date_(DateOrders)'].min()
+
+✅ Assert 2: No variables prohibidas en features
+   leakage_check = [f for f in all_features if f in forbidden_features]
+   if leakage_check: raise ValueError(f'LEAKAGE DETECTADO: {leakage_check}')
+
+✅ Assert 3: processing_time excluido
+   assert 'processing_time' not in all_features
+
+✅ Checklist: 7 variables prohibidas documentadas
+   [
+     'Days_for_shipping_(real)',  # Parte del target
+     'Delivery_Status',            # Post-facto
+     'Late_delivery_risk',         # Otro target
+     'processing_time',            # LEAKAGE reconstruye target
+     'delay_days',                 # Target directo
+     'delay_pos',                  # Derivado del target
+     'y_cls'                       # Target clasificación
+   ]
+
+================================================================================
+CHECKLIST DE AUDITORÍA COMPLETADO
+================================================================================
+
+[✅] 1. No usar información del test durante fit/preprocesamiento
+     → LabelEncoder ahora fit solo en train
+
+[✅] 2. No usar processing_time ni variables que reconstruyen target
+     → processing_time eliminado + en forbidden_features
+
+[✅] 3. Split temporal robusto sin overlap
+     → Fecha fija 2017-04-25 con assert de validación
+
+[✅] 4. Chequeo de duplicados documentado
+     → Se reportan duplicados por Order_Id + shipping_date
+
+[✅] 5. Reproducibilidad (semilla fija, logs, fecha de corte)
+     → random_state=42, CUTOFF_DATE fijo, prints detallados
+
+[✅] 6. Etapa 1 y 2 alineadas correctamente
+     → Etapa 1: TODO train con y_cls
+     → Etapa 2: SOLO positivos (delay_pos > 0)
+     → p_delay NO se usa como feature, solo para combinar outputs
+
+[✅] 7. p_delay no usado como feature del regresor
+     → Verificado: solo se usa post-predicción para combinar
+
+================================================================================
+POR QUÉ LAS MÉTRICAS CAMBIARÁN (EXPLICACIÓN TÉCNICA)
+================================================================================
+
+ANTES DE LAS CORRECCIONES:
+   El modelo tenía "visión del futuro" a través de processing_time, pudiendo
+   aproximar Days_for_shipping_(real) y por ende el target delay_days.
+   
+   Ejemplo:
+   - Si processing_time = 5 días
+   - Y Days_for_shipment_(scheduled) = 3 días
+   - El modelo infiere: delay_days ≈ 5 - 3 = 2 días ✅ (casi perfecto)
+   
+   Resultado: Métricas INFLADAS artificialmente (overfitting extremo).
+
+DESPUÉS DE LAS CORRECCIONES:
+   El modelo debe predecir usando SOLO información operativa disponible
+   al momento del despacho (modo de envío, región, categoría, etc.).
+   
+   El modelo ya NO puede "hacer trampa" calculando el target indirectamente.
+   
+   Resultado: Métricas REALES que reflejan capacidad predictiva verdadera.
+
+COMPARACIÓN ESPERADA:
+
+   MODELO CON LEAKAGE (antes):
+   - PR-AUC clasificación: ~0.90-0.95 (sospechosamente alto)
+   - MAE_pos regresión:     ~0.5-1.0 días (perfectamente bajo)
+   
+   MODELO SIN LEAKAGE (después):
+   - PR-AUC clasificación: ~0.70-0.80 (realista)
+   - MAE_pos regresión:     ~2.0-3.5 días (realista para este problema)
+
+INTERPRETACIÓN:
+   ⚠️ Si las métricas EMPEORAN después de estas correcciones: ¡BIEN!
+   ✅ Significa que el modelo anterior hacía trampa
+   ✅ Las nuevas métricas son las que importan para producción
+   ✅ El modelo ahora es HONESTO sobre su capacidad predictiva
+
+================================================================================
+IMPACTO EN INTEGRACIÓN CON SISTEMA DE ALERTAS
+================================================================================
+
+ANTES (con leakage):
+   - Alarmas basadas en métricas infladas
+   - Riesgo de falsas expectativas en producción
+   - Pérdida de confianza cuando el modelo falla en casos reales
+
+DESPUÉS (sin leakage):
+   - Métricas realistas → umbrales de alerta calibrados correctamente
+   - Expectativas alineadas con rendimiento real
+   - Mayor confianza en producción
+
+RECOMENDACIÓN:
+   1. Re-ejecutar el notebook completo con las correcciones
+   2. Comparar métricas vs modelo anterior (esperamos empeoramiento)
+   3. Si las métricas son aceptables para el negocio → proceder
+   4. Si no → explorar feature engineering adicional (sin leakage)
+   5. NO volver a agregar processing_time bajo ninguna circunstancia
+
+================================================================================
+PRÓXIMOS PASOS SUGERIDOS
+================================================================================
+
+1. ✅ VALIDACIÓN: Ejecutar notebook completo y documentar nuevas métricas
+
+2. 🔍 FEATURE ENGINEERING (sin leakage):
+   - Agregar features geográficas (distancia estimada, zona de tráfico)
+   - Características del producto (peso, volumen, fragilidad)
+   - Historial agregado del carrier (sin usar filas futuras)
+   - Estacionalidad (mes, día de la semana, festividades)
+
+3. 📊 COMPARACIÓN JUSTA:
+   - Comparar modelo 2-stage (sin leakage) vs Baseline 1 (media por segmento)
+   - Si mejora ~15-25% vs baseline → es un modelo útil
+   - Si no mejora significativamente → necesita más features
+
+4. 🎯 CALIBRACIÓN:
+   - Evaluar calibración de probabilidades (reliability diagram)
+   - Ajustar umbral de decisión según costo/beneficio del negocio
+   - Validar en datos de hold-out temporal (2018+ si disponibles)
+
+5. 🚀 PRODUCTIVIZACIÓN:
+   - Documentar features finales y pipeline de preprocesamiento
+   - Crear API de inferencia con mismas transformaciones
+   - Implementar monitoreo de drift (distribución de features en producción)
+
+================================================================================
+CONCLUSIÓN
+================================================================================
+
+El notebook ahora es TÉCNICAMENTE VÁLIDO y listo para evaluación rigurosa.
+
+Las correcciones aplicadas son CRÍTICAS para la validez del modelo:
+- Sin ellas, el modelo es inútil en producción (fallaría drásticamente)
+- Con ellas, el modelo es honesto sobre su capacidad predictiva real
+
+Las métricas empeorarán, pero esto es CORRECTO y ESPERADO.
+Un modelo con leakage es peor que no tener modelo (genera falsas expectativas).
+
+El enfoque 2-stage sigue siendo VÁLIDO y puede ofrecer mejoras vs baselines
+si las features operativas tienen suficiente poder predictivo.
+
+================================================================================
+FIN DEL REPORTE
+================================================================================

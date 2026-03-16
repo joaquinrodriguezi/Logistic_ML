@@ -1,0 +1,78 @@
+
+================================================================================
+               RESUMEN EJECUTIVO - SISTEMA DE ALERTAS
+              Riesgo de Tardanza al Momento del Despacho
+================================================================================
+
+FECHA DE EJECUCIÓN: 2026-03-15 20:59:22
+MODO: SIMULACIÓN
+
+CONFIGURACIÓN
+-------------
+Política: TOPK
+Cupo: Top 20%
+
+RESULTADOS
+----------
+Total envíos evaluados: 34,553
+Total alertas generadas: 6,912 (20.0% del total)
+Score promedio alertas: 0.9999
+
+TOP 10 COMBINACIONES CON MÁS ALERTAS
+-------------------------------------
+Shipping_Mode    Order_Region  n_alertas  score_promedio
+  First Class  Western Europe       1844          0.9999
+  First Class Central America        805          0.9999
+  First Class Southern Europe        635          0.9999
+ Second Class  Western Europe        557          0.9999
+  First Class Northern Europe        521          0.9999
+  First Class   South America        414          0.9999
+ Second Class Central America        276          0.9999
+  First Class  Southeast Asia        241          0.9999
+  First Class         Oceania        208          0.9999
+ Second Class Northern Europe        197          0.9999
+
+
+VALIDACIÓN EN SIMULACIÓN
+-------------------------
+(Solo disponible con datos históricos)
+
+Precision: 1.0000 (100.0% de alertas son tardanzas reales)
+Recall:    0.3483 (detectamos 34.8% de tardanzas)
+
+True Positives:  6,912
+False Positives: 0
+False Negatives: 12,935
+True Negatives:  14,706
+
+
+================================================================================
+                    CÓMO USAR ESTE SISTEMA EN OPERACIÓN
+================================================================================
+
+1. REVISAR ALERTAS DIARIAS
+   - Abrir archivo: alertas.csv
+   - Priorizar por score_model (mayor = mayor riesgo)
+
+2. ACCIÓN SUGERIDA ANTE UNA ALERTA
+   a) Score >= 0.7: ALTA PRIORIDAD
+      → Revisión manual inmediata
+      → Contacto preventivo con cliente
+      → Considerar cambio de método de envío
+
+   b) Score 0.5-0.7: PRIORIDAD MEDIA
+      → Seguimiento cercano
+      → Notificación al equipo de logística
+
+   c) Score < 0.5: MONITOREO
+      → Seguimiento estándar
+
+3. SEGMENTOS DE ALTO RIESGO
+   - Revisar "TOP 10 COMBINACIONES" arriba
+   - Focalizar mejoras operativas en estos segmentos
+
+4. AUDITORÍA
+   - Archivo scoring_completo.csv contiene TODOS los envíos con score
+   - Útil para análisis post-mortem y mejora continua
+
+================================================================================

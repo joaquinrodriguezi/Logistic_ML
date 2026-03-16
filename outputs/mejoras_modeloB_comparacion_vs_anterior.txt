@@ -1,0 +1,31 @@
+COMPARACIÓN: Modelo B Original vs Mejoras 2-Stage
+============================================================
+
+MODELO B ANTERIOR (LightGBM directo):
+  - MAE:  0.99 días
+  - RMSE: 1.27 días
+  - R²:   0.2811
+
+MODELO NUEVO (2-Stage Expected):
+  - MAE:  0.70 días
+  - RMSE: 0.89 días
+  - R²:   0.2715
+  - Mejora MAE: +29.9%
+
+MODELO NUEVO (2-Stage Operativo):
+  - MAE:  0.64 días
+  - RMSE: 1.03 días
+  - R²:   0.0186
+  - Mejora MAE: +35.7%
+
+============================================================
+
+RECOMENDACIÓN:
+
+✓ Ambas variantes del modelo 2-stage MEJORAN el Modelo B anterior.
+
+  - Usar 'delay_expected' para estimaciones probabilísticas (scoring).
+  - Usar 'delay_operativo' para decisiones binarias (alertas con umbral).
+
+Mejor variante según MAE: delay_operativo
+MAE: 0.64 días
