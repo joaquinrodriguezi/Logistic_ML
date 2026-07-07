@@ -1,4 +1,5 @@
 Sistema de alertas de entregas y estimación de días de atraso 🚚📈
+
 “La gracia de hacerlo con datos es que deja de ser una ‘sensación’ y pasa a ser una decisión con respaldo: una probabilidad clara, una regla de alerta entendible y un número de días estimados para dimensionar el problema.”  
 Fuente: Informe final del proyecto de logística (archivo adjunto).
 
